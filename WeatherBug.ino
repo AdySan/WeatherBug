@@ -37,6 +37,7 @@ See more at http://blog.squix.ch
 #include <ESP8266mDNS.h>
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
+#include <ESP8266HTTPClient.h>
 
 // Function prototypes
 bool drawFrame1(SSD1306 *, SSD1306UiState*, int, int); 
@@ -78,6 +79,21 @@ const String WUNDERGROUND_CITY = "Santa_Clarita";
 
 // NTP settings
 #define UTC_OFFSET -28800 // UTC offset for Los Angeles is -8h
+
+// IFTTT
+String IFTTT_HotRequest,IFTTT_ColdRequest; 
+String IFTTT_API_KEY = "bkKjyq8X5wVzCVvUgfoeM8";
+String IFTTT_URL = "http://maker.ifttt.com/trigger/";
+String IFTTT_HOT_EVENT = "Nursery_Temperature_High";
+String IFTTT_COLD_EVENT = "Nursery_Temperature_Low";
+int DidISendHotNotification = 0;
+int DidISendColdNotification = 0;
+char NurseryTemperature[10];
+char NurseryHumidity[10];
+// Set these two parameters as per your needs
+#define MAX_TEMPERATURE 22.2 
+#define MIN_TEMPERATURE 20
+#define TEMPERATURE_HYSTERESIS 0.5
 
 /***************************
  * End Settings
@@ -350,7 +366,68 @@ void loop() {
 
     ArduinoOTA.handle();
 
-    delay(remainingTimeBudget);
+//    delay(remainingTimeBudget);
+
+    // wait for WiFi connection
+    if((WiFi.status() == WL_CONNECTED)) {
+      HTTPClient http;
+  
+      // Serial.print("[HTTP] begin...\n");
+
+      // Convert temperature & humidity  to a string
+      dtostrf(temperature,4, 1, NurseryTemperature);
+      dtostrf(humidity,4, 1, NurseryHumidity);
+       
+      // Generate HTTP request string for IFTTT
+      IFTTT_HotRequest = IFTTT_URL + IFTTT_HOT_EVENT + "/with/key/" + IFTTT_API_KEY + "?value1=" + String(NurseryTemperature) + "&value2=" + String(NurseryHumidity);
+      IFTTT_ColdRequest = IFTTT_URL + IFTTT_COLD_EVENT + "/with/key/" + IFTTT_API_KEY + "?value1=" + String(NurseryTemperature) + "&value2=" + String(NurseryHumidity);
+  
+      // Reset notification flags when temperature returns to normal
+      if(temperature < (MAX_TEMPERATURE - TEMPERATURE_HYSTERESIS) && temperature > (MIN_TEMPERATURE + TEMPERATURE_HYSTERESIS)){
+        DidISendHotNotification = 0;
+        DidISendColdNotification = 0;
+        Serial.println("Temperature is normal");
+      }
+  
+      // Check if temperature is outside normal
+      if(temperature >= MAX_TEMPERATURE && DidISendHotNotification == 0){
+        http.begin(IFTTT_HotRequest);
+        DidISendHotNotification = 1;
+      }
+      
+      if(temperature <= MIN_TEMPERATURE && DidISendColdNotification == 0){
+        http.begin(IFTTT_ColdRequest);
+        DidISendColdNotification = 1;
+      }
+  
+      // Check if Notification was successfull
+      if(DidISendHotNotification || DidISendColdNotification){
+        // Serial.print("[HTTP] GET...\n");
+        // start connection and send HTTP header
+        int httpCode = http.GET();
+  
+        // httpCode will be negative on error
+        if(httpCode) {
+          // HTTP header has been send and Server response header has been handled
+          //Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+  
+          // file found at server
+          if(httpCode == HTTP_CODE_OK) {
+            String payload = http.getString();
+            Serial.println(payload);
+          }
+        } else {
+          Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+          // retry if it fails for some reason
+          DidISendHotNotification = 0;
+          DidISendColdNotification = 0;
+        }
+  
+        http.end();
+      }
+    }
+
+
   }
 
 }
