@@ -34,7 +34,9 @@ See more at http://blog.squix.ch
 #include "WeatherStationImages.h";
 #include "NTPClient.h"
 #include "DHT.h"
-
+#include <ESP8266mDNS.h>
+#include <WiFiUdp.h>
+#include <ArduinoOTA.h>
 
 // Function prototypes
 bool drawFrame1(SSD1306 *, SSD1306UiState*, int, int); 
@@ -48,8 +50,8 @@ bool drawFrame5(SSD1306 *, SSD1306UiState*, int, int);
  * Begin Settings
  **************************/
 // WIFI
-const char* WIFI_SSID = "..."; 
-const char* WIFI_PWD = "...";
+const char* WIFI_SSID = "....."; 
+const char* WIFI_PWD = ".....";
 
 // Setup
 const int UPDATE_INTERVAL_SECS = 10 * 60; // Update every 10 minutes
@@ -70,7 +72,7 @@ SSD1306Ui ui     ( &display );
 
 // Wunderground Settings
 const boolean IS_METRIC = true;
-const String WUNDERGRROUND_API_KEY = "...";
+const String WUNDERGRROUND_API_KEY = ".....";
 const String WUNDERGROUND_COUNTRY = "CA";
 const String WUNDERGROUND_CITY = "Santa_Clarita";
 
@@ -235,9 +237,46 @@ void setup() {
   display.setFont(ArialMT_Plain_10);
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.setContrast(255);
-
-  WiFi.begin(WIFI_SSID, WIFI_PWD);
   
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PWD);
+
+  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+    Serial.println("Connection Failed! Rebooting...");
+    delay(5000);
+    ESP.restart();
+  }
+  // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+  
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("WeatherBug");
+
+  // No authentication by default
+  // ArduinoOTA.setPassword((const char *)"123");
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  Serial.println("Ready");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+
   int counter = 0;
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
@@ -297,6 +336,9 @@ void loop() {
     // You can do some work here
     // Don't do stuff if you are below your
     // time budget.
+
+    ArduinoOTA.handle();
+
     delay(remainingTimeBudget);
   }
 
