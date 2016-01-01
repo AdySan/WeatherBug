@@ -38,6 +38,7 @@ See more at http://blog.squix.ch
 #include <WiFiUdp.h>
 #include <ArduinoOTA.h>
 #include <ESP8266HTTPClient.h>
+#include <PubSubClient.h>
 
 // Function prototypes
 bool drawFrame1(SSD1306 *, SSD1306UiState*, int, int); 
@@ -94,6 +95,13 @@ char NurseryHumidity[10];
 #define MAX_TEMPERATURE 22.2 
 #define MIN_TEMPERATURE 20
 #define TEMPERATURE_HYSTERESIS 0.5
+
+
+//MQTT / HomeKit
+// Update these with values suitable for your network.
+IPAddress MQTTserver(192, 168, 1, 155);
+WiFiClient wclient;
+PubSubClient client(wclient, MQTTserver);
 
 /***************************
  * End Settings
@@ -355,19 +363,9 @@ void loop() {
 
   if (readyForWeatherUpdate && ui.getUiState().frameState == FIXED) {
     updateData(&display);
-  }
+  
 
-  int remainingTimeBudget = ui.update();
-
-  if (remainingTimeBudget > 0) {
-    // You can do some work here
-    // Don't do stuff if you are below your
-    // time budget.
-
-    ArduinoOTA.handle();
-
-//    delay(remainingTimeBudget);
-
+// IFTTT
     // wait for WiFi connection
     if((WiFi.status() == WL_CONNECTED)) {
       HTTPClient http;
@@ -428,6 +426,37 @@ void loop() {
     }
 
 
+
+// MQTT
+
+  if (WiFi.status() == WL_CONNECTED) {
+    if (!client.connected()) {
+      if (client.connect("ESPNurseryTemperatureSensor")) {
+        client.publish("HomeKit","Nursery Temperature Sensor Online!");
+      }
+    }
+
+    if (client.connected()){
+      Serial.println("publishing");
+        client.publish("NurseryTemperature",String(NurseryTemperature));   
+        client.loop();
+    }
+      
+  }
+
+
+  }
+
+  int remainingTimeBudget = ui.update();
+
+  if (remainingTimeBudget > 0) {
+    // You can do some work here
+    // Don't do stuff if you are below your
+    // time budget.
+
+    ArduinoOTA.handle();
+
+    delay(remainingTimeBudget);
   }
 
 }
