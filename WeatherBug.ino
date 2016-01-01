@@ -50,8 +50,8 @@ bool drawFrame5(SSD1306 *, SSD1306UiState*, int, int);
  * Begin Settings
  **************************/
 // WIFI
-const char* WIFI_SSID = "....."; 
-const char* WIFI_PWD = ".....";
+const char* WIFI_SSID = "...."; 
+const char* WIFI_PWD = "....";
 
 // Setup
 const int UPDATE_INTERVAL_SECS = 10 * 60; // Update every 10 minutes
@@ -72,7 +72,7 @@ SSD1306Ui ui     ( &display );
 
 // Wunderground Settings
 const boolean IS_METRIC = true;
-const String WUNDERGRROUND_API_KEY = ".....";
+const String WUNDERGRROUND_API_KEY = "....";
 const String WUNDERGROUND_COUNTRY = "CA";
 const String WUNDERGROUND_CITY = "Santa_Clarita";
 
@@ -95,8 +95,8 @@ float temperature = 0.;
 
 // this array keeps function pointers to all frames
 // frames are the single views that slide from right to left
-bool (*frames[])(SSD1306 *display, SSD1306UiState* state, int x, int y) = { drawFrame1, drawFrame2, drawFrame3, drawFrame4, drawFrame5 };
-int numberOfFrames = 5;
+bool (*frames[])(SSD1306 *display, SSD1306UiState* state, int x, int y) = { drawFrame1, drawFrame2, /*drawFrame3,*/ drawFrame4, drawFrame5 };
+int numberOfFrames = 4;
 
 // flag changed in the ticker function every 10 minutes
 bool readyForWeatherUpdate = false;
@@ -142,7 +142,7 @@ bool drawFrame2(SSD1306 *display, SSD1306UiState* state, int x, int y) {
 
   display->setFont(ArialMT_Plain_24);
   String temp = wunderground.getCurrentTemp() + "°C";
-  display->drawString(60 + x, 20 + y, temp);
+  display->drawString(60 + x, 20 + y,temp);
   int tempWidth = display->getStringWidth(temp);
 
   display->setFont(Meteocons_0_42);
@@ -151,19 +151,20 @@ bool drawFrame2(SSD1306 *display, SSD1306UiState* state, int x, int y) {
   display->drawString(32 + x - weatherIconWidth / 2, 10 + y, weatherIcon);
 }
 
-// Humidity Pressure and Precipitation
-bool drawFrame3(SSD1306 *display, SSD1306UiState* state, int x, int y) {
-  display->setTextAlignment(TEXT_ALIGN_CENTER);
-  display->setFont(ArialMT_Plain_10);
-  display->drawString(32 + x, 0 + y, "Humidity");
-  display->drawString(96 + x, 0 + y, "Pressure");
-  display->drawString(32 + x, 28 + y, "Precipit.");
+// // Humidity Pressure and Precipitation
+// bool drawFrame3(SSD1306 *display, SSD1306UiState* state, int x, int y) {
+//   display->setTextAlignment(TEXT_ALIGN_CENTER);
+//   display->setFont(ArialMT_Plain_10);
+//   display->drawString(32 + x, 0 + y, "Humidity");
+//   display->drawString(96 + x, 0 + y, "Pressure");
+//   display->drawString(32 + x, 28 + y, "Precipit.");
 
-  display->setFont(ArialMT_Plain_16);
-  display->drawString(32 + x, 10 + y, wunderground.getHumidity());
-  display->drawString(96 + x, 10 + y, wunderground.getPressure());
-  display->drawString(32 + x, 38 + y, wunderground.getPrecipitationToday());
-}
+//   display->setFont(ArialMT_Plain_16);
+//   display->drawString(32 + x, 10 + y, wunderground.getHumidity());
+//   display->drawString(96 + x, 10 + y, wunderground.getPressure());
+//   display->drawString(32 + x, 38 + y, wunderground.getPrecipitationToday());
+// }
+
 
 // Icons for today, tomorrow and day after
 bool drawFrame4(SSD1306 *display, SSD1306UiState* state, int x, int y) {
@@ -176,10 +177,18 @@ bool drawFrame4(SSD1306 *display, SSD1306UiState* state, int x, int y) {
 bool drawFrame5(SSD1306 *display, SSD1306UiState* state, int x, int y) {
   display->setTextAlignment(TEXT_ALIGN_CENTER);
   display->setFont(ArialMT_Plain_10);
-  display->drawString(64 + x, 0 + y, "Indoor");
+  display->drawString(64 + x, 0 + y, "Inside");
   display->setFont(ArialMT_Plain_24);
-  display->drawString(64 + x, 10 + y, String(temperature) + "°C");
-  display->drawString(64 + x, 30 + y, String(humidity) + "%");
+  display->drawString(74 + x, 10 + y, "  " + String(temperature) + "°C");
+  display->drawString(74 + x, 30 + y, "  " + String(humidity) + "%");
+
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  display->setFont(Meteocons_0_21);
+  display->drawString(10 +x, 15 + y, "'");
+
+  display->setFont(Meteocons_0_21);
+  display->drawString(10 +x, 35 + y, "R");
+
 }
 
 // Progress bar when updating
@@ -195,6 +204,7 @@ void drawProgress(SSD1306 *display, int percentage, String label) {
 
 // Called every ten minutes
 void updateData(SSD1306 *display) {
+  display->flipScreenVertically();
   drawProgress(display, 10, "Updating time...");
   timeClient.begin();
   drawProgress(display, 20, "Updating time...");
@@ -233,7 +243,7 @@ void setup() {
   display.clear();
   display.display();
 
-  //display.flipScreenVertically();
+  display.flipScreenVertically();
   display.setFont(ArialMT_Plain_10);
   display.setTextAlignment(TEXT_ALIGN_CENTER);
   display.setContrast(255);
@@ -241,41 +251,11 @@ void setup() {
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PWD);
 
-  while (WiFi.waitForConnectResult() != WL_CONNECTED) {
-    Serial.println("Connection Failed! Rebooting...");
-    delay(5000);
-    ESP.restart();
-  }
-  // Port defaults to 8266
-  // ArduinoOTA.setPort(8266);
-  
-  // Hostname defaults to esp8266-[ChipID]
-  ArduinoOTA.setHostname("WeatherBug");
-
-  // No authentication by default
-  // ArduinoOTA.setPassword((const char *)"123");
-
-  ArduinoOTA.onStart([]() {
-    Serial.println("Start");
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nEnd");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("Error[%u]: ", error);
-    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
-    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
-    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
-    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
-    else if (error == OTA_END_ERROR) Serial.println("End Failed");
-  });
-  ArduinoOTA.begin();
-  Serial.println("Ready");
-  Serial.print("IP address: ");
-  Serial.println(WiFi.localIP());
+  // while (WiFi.waitForConnectResult() != WL_CONNECTED) {
+  //   Serial.println("Connection Failed! Rebooting...");
+  //   delay(5000);
+  //   ESP.restart();
+  // }
 
   int counter = 0;
   while (WiFi.status() != WL_CONNECTED) {
@@ -322,6 +302,37 @@ void setup() {
 
   ticker.attach(UPDATE_INTERVAL_SECS, setReadyForWeatherUpdate);
 
+  // Port defaults to 8266
+  // ArduinoOTA.setPort(8266);
+  
+  // Hostname defaults to esp8266-[ChipID]
+  ArduinoOTA.setHostname("WeatherBug");
+
+  // No authentication by default
+  // ArduinoOTA.setPassword((const char *)"123");
+
+  ArduinoOTA.onStart([]() {
+    Serial.println("Start");
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nEnd");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("Error[%u]: ", error);
+    if (error == OTA_AUTH_ERROR) Serial.println("Auth Failed");
+    else if (error == OTA_BEGIN_ERROR) Serial.println("Begin Failed");
+    else if (error == OTA_CONNECT_ERROR) Serial.println("Connect Failed");
+    else if (error == OTA_RECEIVE_ERROR) Serial.println("Receive Failed");
+    else if (error == OTA_END_ERROR) Serial.println("End Failed");
+  });
+  ArduinoOTA.begin();
+  Serial.println("Ready");
+  Serial.print("IP address: ");
+  Serial.println(WiFi.localIP());
+     
 }
 
 void loop() {
