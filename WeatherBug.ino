@@ -39,6 +39,7 @@ See more at http://blog.squix.ch
 #include <ArduinoOTA.h>
 #include <ESP8266HTTPClient.h>
 #include <PubSubClient.h>
+// #include "AdyFonts.h"
 
 // Function prototypes
 bool drawFrame1(SSD1306 *, SSD1306UiState*, int, int); 
@@ -46,7 +47,7 @@ bool drawFrame2(SSD1306 *, SSD1306UiState*, int, int);
 bool drawFrame3(SSD1306 *, SSD1306UiState*, int, int); 
 bool drawFrame4(SSD1306 *, SSD1306UiState*, int, int); 
 bool drawFrame5(SSD1306 *, SSD1306UiState*, int, int); 
-
+bool msOverlay(SSD1306 *, SSD1306UiState*);
 
 /***************************
  * Begin Settings
@@ -71,6 +72,9 @@ SSD1306Ui ui     ( &display );
 // #define DHTPIN D2 // NodeMCU
 #define DHTPIN D4 // Wemos D1 Mini
 #define DHTTYPE DHT22   // DHT 22  (AM2302), AM2321
+char FormattedTemperature[10];
+char FormattedHumidity[10];
+
 
 // Wunderground Settings
 const boolean IS_METRIC = true;
@@ -119,8 +123,11 @@ float temperature = 0.;
 
 // this array keeps function pointers to all frames
 // frames are the single views that slide from right to left
-bool (*frames[])(SSD1306 *display, SSD1306UiState* state, int x, int y) = { drawFrame1, drawFrame2, /*drawFrame3,*/ drawFrame4, drawFrame5 };
-int numberOfFrames = 4;
+bool (*frames[])(SSD1306 *display, SSD1306UiState* state, int x, int y) = { drawFrame1, drawFrame2, drawFrame3, drawFrame4, drawFrame4};
+int numberOfFrames = 5;
+
+bool (*overlays[])(SSD1306 *display, SSD1306UiState* state)             = { msOverlay };
+int overlaysCount = 1;
 
 // flag changed in the ticker function every 10 minutes
 bool readyForWeatherUpdate = false;
@@ -129,90 +136,98 @@ String lastUpdate = "--";
 
 Ticker ticker;
 
+// Date, time, temperature and humidity
+bool msOverlay(SSD1306 *display, SSD1306UiState* state) {
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  display->setFont(ArialMT_Plain_10);
+  
+  // day and date
+  String date = wunderground.getDate();
+  int textWidth = display->getStringWidth(date);
+  display->drawString(0, 0, date);
+  // time
+  display->setFont(ArialMT_Plain_16);
+  String time = timeClient.getFormattedTime();
+  display->drawString(0, 10, time);
+  
+  // temperature
+  display->setFont(ArialMT_Plain_24);
+  dtostrf(temperature,4, 1, FormattedTemperature);
+  dtostrf(humidity,4, 1, FormattedHumidity);
+  display->drawString(0, 24, String(FormattedTemperature) + "°C");
+  
+  // humidity
+  display->setFont(ArialMT_Plain_16);
+  display->drawString(0, 48, String(FormattedHumidity) + "%");
+  display->setTextAlignment(TEXT_ALIGN_LEFT);
+  return true;
+}
+
+// One day's forecast from Weather Underground
 void drawForecast(SSD1306 *display, int x, int y, int dayIndex) {
   display->setTextAlignment(TEXT_ALIGN_CENTER);
   display->setFont(ArialMT_Plain_10);
   String day = wunderground.getForecastTitle(dayIndex).substring(0, 3);
   day.toUpperCase();
-  display->drawString(x + 20, y, day);
+  display->drawString(x + 30, y, day);
   
   display->setFont(Meteocons_0_21);
-  display->drawString(x + 20, y + 15, wunderground.getForecastIcon(dayIndex));
+  display->drawString(x + 30, y + 20, wunderground.getForecastIcon(dayIndex));
 
   display->setFont(ArialMT_Plain_16);
-  display->drawString(x + 20, y + 37, wunderground.getForecastLowTemp(dayIndex) + "/" + wunderground.getForecastHighTemp(dayIndex));
+  display->drawString(x + 30, y + 44, wunderground.getForecastLowTemp(dayIndex) + "-" + wunderground.getForecastHighTemp(dayIndex));
   //display.drawString(x + 20, y + 51, );
   display->setTextAlignment(TEXT_ALIGN_LEFT);
 }
 
-// Time and date
+// Outside temperature from Weather Underground
 bool drawFrame1(SSD1306 *display, SSD1306UiState* state, int x, int y) {
   display->setTextAlignment(TEXT_ALIGN_CENTER);
   display->setFont(ArialMT_Plain_10);
-  String date = wunderground.getDate();
-  int textWidth = display->getStringWidth(date);
-  display->drawString(64 + x, 10 + y, date);
-  display->setFont(ArialMT_Plain_24);
-  String time = timeClient.getFormattedTime();
-  textWidth = display->getStringWidth(time);
-  display->drawString(64 + x, 20 + y, time);
-  display->setTextAlignment(TEXT_ALIGN_LEFT);
-}
+  display->drawString(110 + x, y, "Outside");
+  // display->drawStringMaxWidth(90 + x, y+12, 24, wunderground.getWeatherText());
 
-// Big icon and temperature outside
-bool drawFrame2(SSD1306 *display, SSD1306UiState* state, int x, int y) {
-  display->setFont(ArialMT_Plain_10);
-  display->drawString(60 + x, 10 + y, wunderground.getWeatherText());
-
-  display->setFont(ArialMT_Plain_24);
-  String temp = wunderground.getCurrentTemp() + "°C";
-  display->drawString(60 + x, 20 + y,temp);
-  int tempWidth = display->getStringWidth(temp);
-
-  display->setFont(Meteocons_0_42);
+  display->setFont(Meteocons_0_21);
   String weatherIcon = wunderground.getTodayIcon();
-  int weatherIconWidth = display->getStringWidth(weatherIcon);
-  display->drawString(32 + x - weatherIconWidth / 2, 10 + y, weatherIcon);
+  // int weatherIconWidth = display->getStringWidth(weatherIcon);
+  display->drawString(110 + x, 20 + y, weatherIcon);
+
+  display->setFont(ArialMT_Plain_16);
+  String temp = wunderground.getCurrentTemp() + "°";
+  display->drawString(106 + x, 44 + y,temp);
+  int tempWidth = display->getStringWidth(temp);
 }
 
-// // Humidity Pressure and Precipitation
-// bool drawFrame3(SSD1306 *display, SSD1306UiState* state, int x, int y) {
-//   display->setTextAlignment(TEXT_ALIGN_CENTER);
-//   display->setFont(ArialMT_Plain_10);
-//   display->drawString(32 + x, 0 + y, "Humidity");
-//   display->drawString(96 + x, 0 + y, "Pressure");
-//   display->drawString(32 + x, 28 + y, "Precipit.");
+// Outside Humidity, PRessure and Rain from Weather Underground
+bool drawFrame2(SSD1306 *display, SSD1306UiState* state, int x, int y) {
+  // display->setTextAlignment(TEXT_ALIGN_LEFT);
+  // display->setFont(ArialMT_Plain_10);
+  // display->drawString(90 + x, 0 + y, "Humid.");
+  // display->drawString(90 + x, 20 + y, "Press.");
+  // display->drawString(90 + x, 40 + y, "Rain");
 
-//   display->setFont(ArialMT_Plain_16);
-//   display->drawString(32 + x, 10 + y, wunderground.getHumidity());
-//   display->drawString(96 + x, 10 + y, wunderground.getPressure());
-//   display->drawString(32 + x, 38 + y, wunderground.getPrecipitationToday());
-// }
-
-
-// Icons for today, tomorrow and day after
-bool drawFrame4(SSD1306 *display, SSD1306UiState* state, int x, int y) {
-  drawForecast(display, x, y, 0);
-  drawForecast(display, x + 44, y, 2);
-  drawForecast(display, x + 88, y, 4);
-}
-
-// Indoor temperature and humidity
-bool drawFrame5(SSD1306 *display, SSD1306UiState* state, int x, int y) {
   display->setTextAlignment(TEXT_ALIGN_CENTER);
+  display->setFont(ArialMT_Plain_16);
+  display->drawString(110 + x, 0 + y, wunderground.getHumidity());
   display->setFont(ArialMT_Plain_10);
-  display->drawString(64 + x, 0 + y, "Inside");
-  display->setFont(ArialMT_Plain_24);
-  display->drawString(74 + x, 10 + y, "  " + String(temperature) + "°C");
-  display->drawString(74 + x, 30 + y, "  " + String(humidity) + "%");
+  display->drawString(110 + x, 22 + y, wunderground.getPressure());
+    display->setFont(ArialMT_Plain_16);
+  display->drawString(110 + x, 44 + y, wunderground.getPrecipitationToday());
+}
 
-  display->setTextAlignment(TEXT_ALIGN_LEFT);
-  display->setFont(Meteocons_0_21);
-  display->drawString(10 +x, 15 + y, "'");
+// Today's forecast
+bool drawFrame3(SSD1306 *display, SSD1306UiState* state, int x, int y) {
+  drawForecast(display, x + 80, y, 0);
+}
 
-  display->setFont(Meteocons_0_21);
-  display->drawString(10 +x, 35 + y, "R");
+// Tomorrow's forecast
+bool drawFrame4(SSD1306 *display, SSD1306UiState* state, int x, int y) {
+   drawForecast(display, x + 80, y, 2);
+}
 
+// Day after's forecast
+bool drawFrame5(SSD1306 *display, SSD1306UiState* state, int x, int y) {
+   drawForecast(display, x + 80, y, 6);
 }
 
 // Progress bar when updating
@@ -221,8 +236,8 @@ void drawProgress(SSD1306 *display, int percentage, String label) {
   display->setTextAlignment(TEXT_ALIGN_CENTER);
   display->setFont(ArialMT_Plain_10);
   display->drawStringMaxWidth(64, 10, 128,label);
-  display->drawRect(10, 48, 108, 12);
-  display->fillRect(12, 50, 104 * percentage / 100 , 9);
+  // display->drawRect(10, 48, 108, 4);
+  display->fillRect(12, 50, 104 * percentage / 100 , 2);
   display->display();
 }
 
@@ -240,16 +255,24 @@ void updateData(SSD1306 *display) {
   drawProgress(display, 60, "Updating forecasts...");
   drawProgress(display, 70, "Updating local temperature and humidity");
   humidity = dht.readHumidity();
-  delay(200);
+  // delay(200);
   drawProgress(display, 80, "Updating local temperature and humidity");
   temperature = dht.readTemperature(!IS_METRIC);
-  delay(200);
+  // delay(200);
   drawProgress(display, 90, "Updating local temperature and humidity");
   lastUpdate = timeClient.getFormattedTime();
   Serial.println(lastUpdate);
   drawProgress(display, 100, "Done...");
   readyForWeatherUpdate = false;
-  delay(1000);
+  delay(500);
+}
+
+void FirmwareUpdate(SSD1306 *display,unsigned int progress, unsigned int total ) {
+  drawProgress(display, (progress / (total / 100)), "OTA Firmware update");
+}
+
+void FirmwareUpdateDone(SSD1306 *display) {
+  drawProgress(display, 100, "Done. Rebooting...");
 }
 
 void setReadyForWeatherUpdate() {
@@ -383,17 +406,20 @@ void setup() {
 
   // You can change this to
   // TOP, LEFT, BOTTOM, RIGHT
-  ui.setIndicatorPosition(BOTTOM);
+  ui.setIndicatorPosition(RIGHT);
 
   // Defines where the first frame is located in the bar.
   ui.setIndicatorDirection(LEFT_RIGHT);
 
   // You can change the transition that is used
   // SLIDE_LEFT, SLIDE_RIGHT, SLIDE_TOP, SLIDE_DOWN
-  ui.setFrameAnimation(SLIDE_LEFT);
+  ui.setFrameAnimation(SLIDE_UP);
 
   // Add frames
   ui.setFrames(frames, numberOfFrames);
+
+  // Add overlays
+  ui.setOverlays(overlays, overlaysCount);
 
   // Inital UI takes care of initalising the display too.
   ui.init();
@@ -414,13 +440,17 @@ void setup() {
   // ArduinoOTA.setPassword((const char *)"123");
 
   ArduinoOTA.onStart([]() {
+    display.clear();
     Serial.println("Start");
   });
   ArduinoOTA.onEnd([]() {
+    FirmwareUpdateDone(&display);
     Serial.println("\nEnd");
+    // delay(500);
   });
   ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
     Serial.printf("Progress: %u%%\r", (progress / (total / 100)));
+    FirmwareUpdate(&display, progress, total);   
   });
   ArduinoOTA.onError([](ota_error_t error) {
     Serial.printf("Error[%u]: ", error);
@@ -457,10 +487,10 @@ void loop() {
     // Don't do stuff if you are below your
     // time budget.
 
-    ArduinoOTA.handle();
-
     delay(remainingTimeBudget);
   }
+
+  ArduinoOTA.handle();
 
 }
 
